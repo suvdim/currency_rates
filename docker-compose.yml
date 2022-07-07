@@ -1,0 +1,72 @@
+version: '3'
+
+services:
+  frontend:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/frontend
+    depends_on:
+      -  backend
+    ports:
+      - 8080:8080
+    expose:
+      - 8080
+    volumes:
+      - ./frontend:/opt/frontend
+      - /opt/frontend/node_modules
+  backend:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/backend
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - ./backend/:/usr/backend/
+    depends_on:
+      - db
+      - redis
+    ports:
+      - 8000:8000
+    env_file:
+      - ./backend/.env.dev
+  db:
+    image: postgres:13.0-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=currency_user
+      - POSTGRES_PASSWORD=currency_pass
+      - POSTGRES_DB=currencies
+  redis:
+    image: redis:alpine
+  celery:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/backend
+    command: celery -A project worker -l info
+    volumes:
+      - ./backend/:/usr/backend/
+    env_file:
+      - ./backend/.env.dev
+    depends_on:
+      - db
+      - redis
+      - backend
+  celery_beat:
+    restart: always
+    build:
+      context: .
+      dockerfile: ./dockerfiles/backend
+    command: celery -A project beat
+    volumes:
+      - ./backend/:/usr/backend/
+    env_file:
+      - ./backend/.env.dev
+    depends_on:
+      - db
+      - redis
+      - backend
+
+volumes:
+  postgres_data:
